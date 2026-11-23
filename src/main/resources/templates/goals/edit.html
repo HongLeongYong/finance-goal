@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout('編輯目標', ~{::#page}, ~{})}">
+<body>
+<div id="page">
+    <div class="page-head">
+        <div>
+            <h1>編輯目標</h1>
+            <div class="sub">改模式、年數或假設，結果會立刻重新試算</div>
+        </div>
+        <a class="btn" th:href="@{/goals/{id}(id=${goalId})}">← 回目標</a>
+    </div>
+    <div class="card">
+        <form th:replace="~{fragments/goal-form :: goalForm(@{/goals/{id}(id=${goalId})}, '儲存並試算')}"></form>
+    </div>
+</div>
+</body>
+</html>

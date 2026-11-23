@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout('儀表板', ~{::#page}, ~{::#page-scripts})}">
+<body>
+<div id="page">
+    <div class="page-head">
+        <div>
+            <h1>儀表板</h1>
+            <div class="sub" th:text="${@fmt.month(report.month)} + ' · 你現在在哪'">2026 年 11 月</div>
+        </div>
+        <a class="btn primary" th:href="@{/ledger}">＋ 記一筆</a>
+    </div>
+
+    <!-- 第一排：淨資產 / 資產 / 負債 / 儲蓄率 -->
+    <div class="grid cols-4">
+        <div class="card kpi primary">
+            <div class="label">淨資產</div>
+            <div class="value" th:text="${@fmt.cur(summary.netWorth())}">$0</div>
+            <div class="hint">資產 − 負債</div>
+        </div>
+        <div class="card kpi">
+            <div class="label">總資產</div>
+            <div class="value" th:text="${@fmt.cur(summary.totalAssets())}">$0</div>
+            <div class="hint" th:text="'含定存 ' + ${@fmt.cur(summary.deposits())} + '、股票 ' + ${@fmt.cur(summary.stocks())}">含定存</div>
+        </div>
+        <div class="card kpi">
+            <div class="label">總負債</div>
+            <div class="value expense" th:text="${@fmt.cur(summary.liabilities())}">$0</div>
+            <div class="hint">信用卡、貸款等</div>
+        </div>
+        <div class="card kpi">
+            <div class="label">本月儲蓄率</div>
+            <div class="value" th:classappend="${report.savingsRate() != null and report.savingsRate().signum() < 0} ? 'expense' : 'income'"
+                 th:text="${@fmt.pct(report.savingsRate())}">—</div>
+            <div class="hint" th:text="'結餘 ' + ${@fmt.cur(report.net())}">結餘</div>
+        </div>
+    </div>
+
+    <!-- 第二排：你的時間值多少錢 / 錢幫你賺多少 -->
+    <div class="grid cols-2-1">
+        <div class="card">
+            <h2>⏱ 你一分鐘值多少錢 <a class="aside" th:href="@{/settings}">調整薪資 →</a></h2>
+            <div class="earn-card" th:if="${payRate.configured}">
+                <div>
+                    <div class="muted small">今天已經賺了</div>
+                    <div id="earn-today" class="earn-big"
+                         th:data-per-second="${payRate.perSecond()}"
+                         th:data-start="${#temporals.format(payRate.workStartTime(), 'HH:mm')}"
+                         th:data-end="${#temporals.format(payRate.workEndTime(), 'HH:mm')}"
+                         th:data-break-start="${payRate.hasBreak()} ? ${#temporals.format(payRate.breakStartTime(), 'HH:mm')} : null"
+                         th:data-break-end="${payRate.hasBreak()} ? ${#temporals.format(payRate.breakEndTime(), 'HH:mm')} : null">$0.00</div>
+                    <div id="earn-status" class="earn-status">計算中…</div>
+                </div>
+                <dl class="rate-list">
+                    <dt>月薪</dt><dd th:text="${@fmt.cur(payRate.monthlySalary())}">$0</dd>
+                    <dt>時薪</dt><dd th:text="${@fmt.cur(payRate.perHour(), 1)}">$0</dd>
+                    <dt>分薪</dt><dd th:text="${@fmt.cur(payRate.perMinute(), 2)}">$0</dd>
+                    <dt>秒薪</dt><dd th:text="${@fmt.cur(payRate.perSecond(), 4)}">$0</dd>
+                </dl>
+            </div>
+            <div class="empty" th:unless="${payRate.configured}">
+                先到 <a th:href="@{/settings}">設定</a> 填月薪和工時，就能看到你每分鐘值多少錢。
+            </div>
+        </div>
+        <div class="card kpi">
+            <div class="label">💸 你的錢每分鐘幫你賺</div>
+            <div class="value income" th:text="${@fmt.cur(summary.passivePerMinute(), 4)}">$0</div>
+            <div class="hint" th:text="'每月被動收入（定存利息＋平均股利）' + ${@fmt.cur(summary.monthlyPassiveIncome())}">每月被動收入</div>
+            <div class="hint" th:if="${payRate.configured and summary.monthlyPassiveIncome().signum() > 0}"
+                 th:text="'相當於你' + ${payRate.describe(summary.monthlyPassiveIncome())} + '的薪水'">相當於</div>
+        </div>
+    </div>
+
+    <!-- 目標進度 -->
+    <div class="card" style="margin-bottom: 18px">
+        <h2>🎯 目標進度 <a class="aside" th:href="@{/goals}">全部目標 →</a></h2>
+        <div class="grid cols-3" style="margin-bottom: 0" th:unless="${#lists.isEmpty(goals)}">
+            <a class="goal-card" th:each="g, s : ${goals}" th:if="${s.index < 3}" th:href="@{/goals/{id}(id=${g.goal().id})}">
+                <strong th:text="${g.goal().name}">財務自由</strong>
+                <div class="goal-headline" style="font-size: 16px" th:text="${g.headline()}">每月要存</div>
+                <div class="small muted" th:text="${g.subline()}"></div>
+                <th:block th:if="${g.hasTarget()}">
+                    <div class="bar" style="margin-top: 8px"><span th:style="'width:' + ${g.progressPercent()} + '%'"></span></div>
+                    <div class="small muted" th:text="${g.progressPercent()} + '% · 目標 ' + ${@fmt.cur(g.target())}"></div>
+                </th:block>
+            </a>
+        </div>
+        <div class="muted" th:if="${#lists.isEmpty(goals)}">
+            還沒有目標。<a th:href="@{/goals}">設定第一個目標 →</a>，看看要幾年才能達成、現在該做什麼。
+        </div>
+    </div>
+
+    <!-- 第三排：本月收支 / 資產配置 -->
+    <div class="grid cols-2">
+        <div class="card">
+            <h2>本月收支 <a class="aside" th:href="@{/ledger/report}">看月報表 →</a></h2>
+            <div class="grid cols-3" style="margin-bottom: 14px">
+                <div class="kpi"><div class="label">收入</div><div class="value income" style="font-size:20px" th:text="${@fmt.cur(report.income())}">$0</div></div>
+                <div class="kpi"><div class="label">支出</div><div class="value expense" style="font-size:20px" th:text="${@fmt.cur(report.expense())}">$0</div>
+                    <div class="hint" th:if="${payRate.configured and report.expense().signum() > 0}" th:text="'= ' + ${payRate.describe(report.expense())}"></div></div>
+                <div class="kpi"><div class="label">結餘</div><div class="value" style="font-size:20px" th:text="${@fmt.cur(report.net())}">$0</div></div>
+            </div>
+            <table th:unless="${#lists.isEmpty(report.expenseRows())}">
+                <tr th:each="row, s : ${report.expenseRows()}" th:if="${s.index < 5}">
+                    <td style="width: 32%" th:text="${row.displayName()}">餐飲</td>
+                    <td><div class="bar expense"><span th:style="'width:' + ${@fmt.pctNumber(row.share())} + '%'"></span></div></td>
+                    <td class="num" th:text="${@fmt.cur(row.amount())}">$0</td>
+                    <td class="num muted small" th:text="${@fmt.pct(row.share())}">0%</td>
+                </tr>
+            </table>
+            <div class="empty" th:if="${#lists.isEmpty(report.expenseRows())}">這個月還沒有支出紀錄</div>
+        </div>
+        <div class="card">
+            <h2>資產配置 <a class="aside" th:href="@{/assets}">管理資產 →</a></h2>
+            <div class="chart-box" th:if="${summary.totalAssets().signum() > 0}"><canvas id="allocation-chart"></canvas></div>
+            <div class="empty" th:unless="${summary.totalAssets().signum() > 0}">
+                還沒有資產資料，先到 <a th:href="@{/assets}">資產</a> 新增帳戶或定存。
+            </div>
+        </div>
+    </div>
+
+    <!-- 第四排：近期記帳 / 定存提醒 + 淨資產趨勢 -->
+    <div class="grid cols-2-1">
+        <div class="card">
+            <h2>近期記帳 <a class="aside" th:href="@{/ledger}">全部 →</a></h2>
+            <table th:unless="${#lists.isEmpty(recent)}">
+                <thead><tr><th>日期</th><th>分類</th><th>備註</th><th class="num">金額</th><th class="num">工作時間</th></tr></thead>
+                <tbody>
+                <tr th:each="e : ${recent}">
+                    <td th:text="${#temporals.format(e.entryDate, 'MM/dd')}">11/18</td>
+                    <td th:text="${e.category.displayName}">餐飲</td>
+                    <td class="muted" th:text="${e.note}">午餐</td>
+                    <td class="num" th:classappend="${e.type.name() == 'INCOME'} ? 'income' : 'expense'"
+                        th:text="(${e.type.name() == 'INCOME'} ? '+' : '−') + ${@fmt.cur(e.amount)}">$0</td>
+                    <td class="num muted small" th:text="${payRate.describe(e.amount)}"></td>
+                </tr>
+                </tbody>
+            </table>
+            <div class="empty" th:if="${#lists.isEmpty(recent)}">還沒有記帳紀錄</div>
+        </div>
+        <div>
+            <div class="card" style="margin-bottom: 18px">
+                <h2>🔔 定存提醒</h2>
+                <div th:each="v : ${summary.maturingSoon()}" style="margin-bottom: 10px">
+                    <span class="badge" th:classappend="${v.status().name()}" th:text="${v.status().label}">即將到期</span>
+                    <strong th:text="${v.deposit().bank}">銀行</strong>
+                    <span th:text="${@fmt.cur(v.cyclePrincipal())}">$0</span>
+                    <div class="small muted" th:text="${#temporals.format(v.maturityDate(), 'yyyy/MM/dd')} + ' 到期' + (${v.daysToMaturity() > 0} ? '（剩 ' + ${v.daysToMaturity()} + ' 天）' : '')">到期日</div>
+                </div>
+                <div class="muted small" th:if="${#lists.isEmpty(summary.maturingSoon())}">30 天內沒有到期的定存 👍</div>
+            </div>
+            <div class="card">
+                <h2>淨資產趨勢</h2>
+                <div class="chart-box" style="height: 180px" th:if="${#lists.size(history) > 0}"><canvas id="networth-chart"></canvas></div>
+                <div class="muted small" th:if="${#lists.isEmpty(history)}">每月會自動存一次快照，累積後就能看到趨勢。</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script id="page-scripts" th:inline="javascript">
+    fgCharts.doughnut('allocation-chart',
+        ['現金', '銀行活存', '定存', '股票'],
+        [ [[${summary.cash()}]], [[${summary.bank()}]], [[${summary.deposits()}]], [[${summary.stocks()}]] ].map(Number));
+    fgCharts.line('networth-chart',
+        [[${history.![snapshotMonth.toString().substring(0, 7)]}]],
+        [[${history.![netWorth]}]].map(Number));
+</script>
+</body>
+</html>

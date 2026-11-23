@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout('設定', ~{::#page}, ~{})}">
+<body>
+<div id="page">
+    <div class="page-head">
+        <div>
+            <h1>設定</h1>
+            <div class="sub">薪資工時（用來算你一分鐘值多少錢）與收支分類</div>
+        </div>
+    </div>
+
+    <div class="grid cols-2-1">
+        <div class="card">
+            <h2>💼 薪資與工時</h2>
+            <form method="post" th:action="@{/settings/profile}" th:object="${profileForm}">
+                <div class="form-grid-2" style="margin-bottom: 14px">
+                    <div class="field">
+                        <label for="monthlySalary">月薪（實領或稅前皆可，自己決定）</label>
+                        <input type="number" th:field="*{monthlySalary}" min="0" step="any" required>
+                        <div class="field-error" th:errors="*{monthlySalary}"></div>
+                    </div>
+                    <div class="field">
+                        <label for="workDaysPerMonth">每月上班天數</label>
+                        <input type="number" th:field="*{workDaysPerMonth}" min="1" max="31" required>
+                        <div class="field-error" th:errors="*{workDaysPerMonth}"></div>
+                    </div>
+                    <div class="field">
+                        <label for="workStartTime">上班時間</label>
+                        <input type="time" th:field="*{workStartTime}" required>
+                        <div class="field-error" th:errors="*{workStartTime}"></div>
+                    </div>
+                    <div class="field">
+                        <label for="workEndTime">下班時間</label>
+                        <input type="time" th:field="*{workEndTime}" required>
+                        <div class="field-error" th:errors="*{workEndTime}"></div>
+                        <div class="field-error" th:errors="*{workPeriodValid}"></div>
+                    </div>
+                    <div class="field">
+                        <label for="breakStartTime">午休開始（選填）</label>
+                        <input type="time" th:field="*{breakStartTime}">
+                    </div>
+                    <div class="field">
+                        <label for="breakEndTime">午休結束（選填）</label>
+                        <input type="time" th:field="*{breakEndTime}">
+                        <div class="field-error" th:errors="*{breakValid}"></div>
+                    </div>
+                </div>
+                <p class="small muted" style="margin: 0 0 14px">每天工時 = 下班 − 上班 − 午休，會自動計算。午休時間不算錢，首頁的「今天已經賺了」也會在午休時暫停。</p>
+                <h3 class="form-section">📈 券商手續費（買賣股票時自動計算）</h3>
+                <div class="form-grid-2" style="margin-bottom: 14px">
+                    <div class="field">
+                        <label for="feeDiscount">手續費折扣（0.6 = 6 折，1 = 不打折）</label>
+                        <input type="number" th:field="*{feeDiscount}" min="0.1" max="1" step="0.01" required>
+                        <div class="field-error" th:errors="*{feeDiscount}"></div>
+                    </div>
+                    <div class="field">
+                        <label for="minFee">整股最低手續費（元，零股固定最低 1 元）</label>
+                        <input type="number" th:field="*{minFee}" min="0" max="100" required>
+                        <div class="field-error" th:errors="*{minFee}"></div>
+                    </div>
+                </div>
+                <p class="small muted" style="margin: 0 0 14px">手續費 = 成交金額 × 0.1425% × 折扣（無條件捨去）；賣出另收證交稅 0.3%，ETF 0.1%。</p>
+                <button class="btn primary" type="submit">儲存</button>
+            </form>
+        </div>
+        <div class="card">
+            <h2>目前換算結果</h2>
+            <dl class="rate-list" th:if="${payRate.configured}">
+                <dt>上班時段</dt><dd th:text="${#temporals.format(payRate.workStartTime(), 'HH:mm')} + '–' + ${#temporals.format(payRate.workEndTime(), 'HH:mm')}">08:30–17:00</dd>
+                <dt>午休</dt><dd th:text="${payRate.hasBreak()} ? ${#temporals.format(payRate.breakStartTime(), 'HH:mm')} + '–' + ${#temporals.format(payRate.breakEndTime(), 'HH:mm')} : '無'">12:15–13:30</dd>
+                <dt>每天工時</dt><dd th:text="${payRate.workHoursPerDay().stripTrailingZeros().toPlainString()} + ' 小時'">7.25 小時</dd>
+                <dt>每月工時</dt><dd th:text="${payRate.hoursPerMonth().stripTrailingZeros().toPlainString()} + ' 小時'">176 小時</dd>
+                <dt>時薪</dt><dd th:text="${@fmt.cur(payRate.perHour(), 1)}">$0</dd>
+                <dt>分薪</dt><dd th:text="${@fmt.cur(payRate.perMinute(), 2)}">$0</dd>
+                <dt>秒薪</dt><dd th:text="${@fmt.cur(payRate.perSecond(), 4)}">$0</dd>
+                <dt>150 元咖啡</dt><dd th:text="${payRate.describe(150L)}">工作</dd>
+            </dl>
+            <div class="muted" th:unless="${payRate.configured}">填好月薪後這裡會顯示時薪、分薪、秒薪。</div>
+        </div>
+    </div>
+
+    <div class="card" id="categories">
+        <h2>🏷 收支分類 <span class="aside">已經有記帳紀錄的分類不能刪除</span></h2>
+        <div class="grid cols-2">
+            <div>
+                <h3 class="small muted">支出</h3>
+                <div class="cat-list">
+                    <span class="cat-chip" th:each="c : ${expenseCategories}">
+                        <span th:text="${c.displayName}">餐飲</span>
+                        <form method="post" th:action="@{/settings/categories/{id}/delete(id=${c.id})}" th:data-confirm="'刪除分類「' + ${c.name} + '」？'">
+                            <button class="btn link danger sm" type="submit" title="刪除">✕</button>
+                        </form>
+                    </span>
+                </div>
+            </div>
+            <div>
+                <h3 class="small muted">收入</h3>
+                <div class="cat-list">
+                    <span class="cat-chip" th:each="c : ${incomeCategories}">
+                        <span th:text="${c.displayName}">薪水</span>
+                        <form method="post" th:action="@{/settings/categories/{id}/delete(id=${c.id})}" th:data-confirm="'刪除分類「' + ${c.name} + '」？'">
+                            <button class="btn link danger sm" type="submit" title="刪除">✕</button>
+                        </form>
+                    </span>
+                </div>
+            </div>
+        </div>
+        <form method="post" th:action="@{/settings/categories}" th:object="${categoryForm}" style="margin-top: 18px">
+            <div class="flash err" th:each="err : ${#fields.globalErrors()}" th:text="${err}">錯誤</div>
+            <div class="form-row" style="grid-template-columns: 120px 100px 1fr auto; max-width: 640px">
+                <div class="field">
+                    <label for="type">類型</label>
+                    <select th:field="*{type}">
+                        <option value="EXPENSE">支出</option>
+                        <option value="INCOME">收入</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="icon">圖示</label>
+                    <input type="text" th:field="*{icon}" maxlength="10" placeholder="🐶">
+                </div>
+                <div class="field">
+                    <label for="name">名稱</label>
+                    <input type="text" th:field="*{name}" maxlength="30" placeholder="例如：寵物" required>
+                    <div class="field-error" th:errors="*{name}"></div>
+                </div>
+                <div class="field"><button class="btn primary" type="submit">新增分類</button></div>
+            </div>
+        </form>
+    </div>
+</div>
+</body>
+</html>

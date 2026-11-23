@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout('編輯帳戶', ~{::#page}, ~{})}">
+<body>
+<div id="page">
+    <div class="page-head">
+        <div>
+            <h1>編輯帳戶</h1>
+            <div class="sub">直接修改餘額可用來校正（例如和存摺對帳）</div>
+        </div>
+        <a class="btn" th:href="@{/assets}">← 回資產</a>
+    </div>
+    <div class="card" style="max-width: 600px">
+        <form method="post" th:action="@{/assets/accounts/{id}(id=${accountId})}">
+            <div th:replace="~{fragments/asset-forms :: accountFields(false)}"></div>
+        </form>
+    </div>
+</div>
+</body>
+</html>

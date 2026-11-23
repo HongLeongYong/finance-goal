@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" xmlns:th="http://www.thymeleaf.org"
+      th:fragment="layout(title, content, scripts)">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${title} + ' · 記帳與目標'">記帳與目標</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800;900&family=Noto+Sans+TC:wght@500;700;900&display=swap">
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div class="app">
+    <aside class="sidebar">
+        <div class="brand">💰 記帳與目標<small>你一分鐘值多少錢？</small></div>
+        <nav class="nav">
+            <a th:href="@{/}" th:classappend="${nav == 'dashboard'} ? 'active'">📊 儀表板</a>
+            <a th:href="@{/ledger}" th:classappend="${nav == 'ledger'} ? 'active'">🧾 記帳</a>
+            <a th:href="@{/ledger/report}" th:classappend="${nav == 'report'} ? 'active'">📅 月報表</a>
+            <a th:href="@{/assets}" th:classappend="${nav == 'assets'} ? 'active'">🏦 資產與定存</a>
+            <a th:href="@{/goals}" th:classappend="${nav == 'goals'} ? 'active'">🎯 目標試算</a>
+            <a th:href="@{/stocks}" th:classappend="${nav == 'stocks'} ? 'active'">📈 台股持股</a>
+            <div class="nav-section">系統</div>
+            <a th:href="@{/settings}" th:classappend="${nav == 'settings'} ? 'active'">⚙️ 設定</a>
+        </nav>
+        <div class="sidebar-foot" th:if="${payRate.configured}">
+            你的分薪：<strong th:text="${@fmt.cur(payRate.perMinute(), 2)}">$5.68</strong>
+        </div>
+    </aside>
+
+    <main class="main">
+        <div class="flash ok" th:if="${message}" th:text="${message}">已儲存</div>
+        <div class="flash err" th:if="${error}" th:text="${error}">錯誤</div>
+        <div class="flash warn" th:unless="${payRate.configured} or ${nav == 'settings'}">
+            還沒設定月薪，無法換算「工作時間」。<a th:href="@{/settings}">到設定填寫 →</a>
+        </div>
+        <th:block th:replace="${content}"></th:block>
+    </main>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script th:src="@{/js/app.js}"></script>
+<th:block th:replace="${scripts}"></th:block>
+</body>
+</html>

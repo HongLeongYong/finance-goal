@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout(${r.goal().name}, ~{::#page}, ~{::#page-scripts})}">
+<body>
+<div id="page">
+    <div class="page-head">
+        <div>
+            <h1 th:text="${r.goal().name}">財務自由</h1>
+            <div class="sub" th:text="${r.goal().mode.label}">模式</div>
+        </div>
+        <div style="display:flex; gap:8px">
+            <a class="btn" th:href="@{/goals}">← 所有目標</a>
+            <a class="btn primary" th:href="@{/goals/{id}/edit(id=${r.goal().id})}">調整目標 / 假設</a>
+            <form method="post" th:action="@{/goals/{id}/delete(id=${r.goal().id})}" data-confirm="確定刪除這個目標？">
+                <button class="btn danger" type="submit">刪除</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 結論 -->
+    <div class="card goal-hero" style="margin-bottom: 18px">
+        <div>
+            <div class="goal-headline big" th:text="${r.headline()}">每月要存 $53,794</div>
+            <div class="muted" th:text="${r.subline()}">比現在多</div>
+        </div>
+        <div th:if="${r.hasTarget()}" style="min-width: 280px">
+            <div class="small muted">目標金額<span th:if="${r.assumptions().inflationPct() != null}">（今天的購買力）</span></div>
+            <div class="kpi"><div class="value" th:text="${@fmt.cur(r.target())}">$0</div></div>
+            <div class="small muted" th:if="${r.goal().targetType.name() == 'PASSIVE_INCOME'}"
+                 th:text="'每月被動收入 ' + ${@fmt.cur(r.goal().monthlyPassiveIncome)} + ' × 12 ÷ ' + ${@fmt.rate(r.goal().withdrawalRate)}"></div>
+            <div class="bar" style="margin-top: 8px"><span th:style="'width:' + ${r.progressPercent()} + '%'"></span></div>
+            <div class="small muted" th:text="'目前進度 ' + ${r.progressPercent()} + '%（' + ${@fmt.cur(r.assumptions().principal())} + '）'"></div>
+        </div>
+    </div>
+
+    <div class="grid cols-2-1">
+        <!-- 成長曲線 -->
+        <div class="card">
+            <h2>資產成長試算 <span class="aside">藍色 = 總資產，灰色 = 本金 + 累積存入，差距就是報酬</span></h2>
+            <div class="chart-box" style="height: 300px"><canvas id="projection-chart"></canvas></div>
+        </div>
+        <!-- 假設 -->
+        <div class="card">
+            <h2>試算假設 <a class="aside" th:href="@{/goals/{id}/edit(id=${r.goal().id})}">修改 →</a></h2>
+            <dl class="rate-list">
+                <dt>目前本金</dt>
+                <dd><span th:text="${@fmt.cur(r.assumptions().principal())}">$0</span>
+                    <span class="small muted" th:text="'（' + ${r.assumptions().principalSource()} + '）'"></span></dd>
+                <dt>每月可存</dt>
+                <dd><span th:text="${@fmt.cur(r.assumptions().monthlySaving())}">$0</span>
+                    <span class="small muted" th:text="${r.assumptions().savingAuto()} ? '（自動）' : '（自訂）'"></span></dd>
+                <dt>預期年報酬</dt>
+                <dd><span th:text="${@fmt.rate(r.assumptions().annualReturnPct())}">0%</span>
+                    <span class="small muted" th:text="${r.assumptions().returnAuto()} ? '（資產加權）' : '（自訂）'"></span></dd>
+                <dt>通膨</dt>
+                <dd th:text="${r.assumptions().inflationPct() == null} ? '不考慮' : ${@fmt.rate(r.assumptions().inflationPct())} + '（實質報酬 ' + ${r.assumptions().effectiveRatePct()} + '%）'">不考慮</dd>
+                <th:block th:if="${r.goal().years != null and r.goal().mode.name() != 'TIME_TO_TARGET'}">
+                    <dt>年限</dt><dd th:text="${r.goal().years} + ' 年'">10 年</dd>
+                </th:block>
+            </dl>
+            <p class="small muted" style="margin: 12px 0 0" th:if="${r.assumptions().savingAuto()}"
+               th:text="'每月可存依據：' + ${r.assumptions().savingBasis()}"></p>
+            <p class="small muted" style="margin: 6px 0 0" th:if="${r.assumptions().returnAuto() and r.assumptions().annualReturnPct().signum() == 0}">
+                ⚠️ 目前資產沒有任何報酬（全是現金/活存），試算會偏保守。可以在「修改」填入預期年報酬，例如 ETF 長期約 5%。
+            </p>
+        </div>
+    </div>
+
+    <!-- 累積式：存入 / 提出紀錄 -->
+    <div class="card" id="contributions" style="margin-bottom: 20px">
+        <h2>💰 存入紀錄
+            <span class="aside">只標記「這筆錢是要給這個目標的」，不會動到記帳、儲蓄率和帳戶餘額</span>
+        </h2>
+
+        <th:block th:if="${r.contributions() != null}" th:with="c=${r.contributions()}">
+            <div class="grid cols-4" style="margin-bottom: 16px">
+                <div class="card kpi"><div class="label">目前累積</div><div class="value" th:text="${@fmt.cur(c.total())}">$0</div>
+                    <div class="hint" th:if="${r.hasTarget()}" th:text="'還差 ' + ${@fmt.cur(r.remaining())}"></div></div>
+                <div class="card kpi"><div class="label">本月已存</div>
+                    <div class="value" th:classappend="${c.thisMonth().compareTo(r.plannedMonthly()) >= 0} ? 'income' : 'expense'"
+                         th:text="${@fmt.cur(c.thisMonth())}">$0</div>
+                    <div class="hint" th:text="'這個月應存 ' + ${@fmt.cur(r.plannedMonthly())} + (${c.thisMonth().compareTo(r.plannedMonthly()) >= 0} ? ' ✅ 達標' : '')"></div></div>
+                <div class="card kpi"><div class="label">近幾個月平均存入</div><div class="value" th:text="${@fmt.cur(c.recentAverage())}">$0</div>
+                    <div class="hint" th:text="'近 ' + ${#lists.size(c.recentMonths())} + ' 個月'"></div></div>
+                <div class="card kpi"><div class="label">存入紀錄</div><div class="value" th:text="${#lists.size(contributionList)} + ' 筆'">0 筆</div>
+                    <div class="hint" th:unless="${#lists.isEmpty(c.monthLabels())}" th:text="'從 ' + ${c.monthLabels()[0]} + ' 開始'"></div></div>
+            </div>
+            <div class="chart-box" style="height: 200px; margin-bottom: 16px" th:if="${#lists.size(c.monthLabels()) > 1}">
+                <canvas id="contribution-chart"></canvas>
+            </div>
+        </th:block>
+        <div class="flash warn" th:if="${r.contributions() == null}">
+            這個目標的本金目前是「<span th:text="${r.goal().principalMode.label}">自動</span>」。記一筆存入後，會自動改成累積式，本金 = 存入紀錄加總。
+        </div>
+
+        <form method="post" th:action="@{/goals/{id}/contributions(id=${r.goal().id})}" th:object="${contributionForm}">
+            <div class="flash err" th:each="err : ${#fields.globalErrors()}" th:text="${err}">錯誤</div>
+            <div class="form-row" style="grid-template-columns: auto 170px 170px 1fr auto">
+                <div class="field">
+                    <label>存入 / 提出</label>
+                    <div class="type-toggle">
+                        <input type="radio" name="deposit" value="true" id="c-in" th:checked="*{deposit}"><label for="c-in" class="c-in">存入</label>
+                        <input type="radio" name="deposit" value="false" id="c-out" th:checked="*{!deposit}"><label for="c-out" class="c-out">提出</label>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="contributionDate">日期</label>
+                    <input type="date" th:field="*{contributionDate}" required>
+                </div>
+                <div class="field">
+                    <label for="amount">金額</label>
+                    <input type="number" th:field="*{amount}" min="1" step="1" placeholder="5000" required>
+                    <div class="field-error" th:errors="*{amount}"></div>
+                </div>
+                <div class="field">
+                    <label for="note">備註</label>
+                    <input type="text" th:field="*{note}" maxlength="200" placeholder="例如：11 月薪水撥一點">
+                </div>
+                <div class="field"><button class="btn primary" type="submit">記錄</button></div>
+            </div>
+        </form>
+
+        <table th:unless="${#lists.isEmpty(contributionList)}" style="margin-top: 16px">
+            <thead><tr><th>日期</th><th>類型</th><th class="num">金額</th><th>備註</th><th></th></tr></thead>
+            <tbody>
+            <tr th:each="c : ${contributionList}">
+                <td th:text="${c.contributionDate}">2026-11-01</td>
+                <td><span class="badge" th:classappend="${c.withdrawal} ? 'EXPENSE' : 'INCOME'" th:text="${c.withdrawal} ? '提出' : '存入'">存入</span></td>
+                <td class="num" th:classappend="${c.withdrawal} ? 'expense' : 'income'"
+                    th:text="(${c.withdrawal} ? '' : '+') + ${@fmt.cur(c.amount)}">+$5,000</td>
+                <td class="muted" th:text="${c.note}"></td>
+                <td class="actions">
+                    <form method="post" th:action="@{/goals/{id}/contributions/{cid}/delete(id=${r.goal().id},cid=${c.id})}" data-confirm="刪除這筆紀錄？">
+                        <button class="btn link danger" type="submit">刪除</button>
+                    </form>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- N 年後的組成 -->
+    <div class="grid cols-3" th:if="${r.projected() != null}">
+        <div class="card kpi"><div class="label">本金</div><div class="value" th:text="${@fmt.cur(r.assumptions().principal())}">$0</div></div>
+        <div class="card kpi"><div class="label">累積存入</div><div class="value" th:text="${@fmt.cur(r.contributed().subtract(r.assumptions().principal()))}">$0</div></div>
+        <div class="card kpi"><div class="label">報酬</div><div class="value income" th:text="${@fmt.cur(r.projected().subtract(r.contributed()))}">$0</div></div>
+    </div>
+
+    <!-- 行動建議 -->
+    <div class="card" th:unless="${#lists.isEmpty(r.suggestions())}" style="margin-bottom: 18px">
+        <h2 th:text="${r.goal().mode.name() == 'PLAN'} ? '💡 對應到現在，你可以這樣做' : '結果'">建議</h2>
+        <div class="suggestions">
+            <div class="suggestion" th:each="s : ${r.suggestions()}" th:classappend="${s.warn()} ? 'warn'">
+                <div class="icon" th:text="${s.icon()}">💰</div>
+                <div>
+                    <div class="title" th:text="${s.title()}">多存</div>
+                    <div class="small muted" th:text="${s.detail()}">說明</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 逐年明細 -->
+    <details class="card">
+        <summary>逐年明細</summary>
+        <table>
+            <thead><tr><th>第幾年</th><th class="num">總資產</th><th class="num">本金 + 累積存入</th><th class="num">累積報酬</th></tr></thead>
+            <tbody>
+            <tr th:each="p : ${r.series()}">
+                <td th:text="${p.year() == 0} ? '現在' : '第 ' + ${p.year()} + ' 年'">第 1 年</td>
+                <td class="num" th:text="${@fmt.cur(p.total())}">$0</td>
+                <td class="num muted" th:text="${@fmt.cur(p.contributed())}">$0</td>
+                <td class="num income" th:text="${@fmt.cur(p.growth())}">$0</td>
+            </tr>
+            </tbody>
+        </table>
+    </details>
+</div>
+
+<script id="page-scripts" th:inline="javascript">
+    /*[# th:if="${r.contributions() != null}"]*/
+    fgCharts.line('contribution-chart', [[${r.contributions().monthLabels()}]], [[${r.contributions().monthTotals()}]].map(Number));
+    /*[/]*/
+    fgCharts.projection('projection-chart',
+        [[${r.series().![year()]}]],
+        [[${r.series().![total()]}]],
+        [[${r.series().![contributed()]}]],
+        [[${r.target()}]]);
+</script>
+</body>
+</html>

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- 帳戶表單欄位 -->
+<div th:fragment="accountFields(horizontal)" th:object="${accountForm}"
+     th:class="${horizontal} ? 'form-row' : 'form-stack'"
+     th:style="${horizontal} ? 'grid-template-columns: 1fr 160px 180px 1fr auto' : ''">
+    <div class="field">
+        <label for="name">帳戶名稱</label>
+        <input type="text" th:field="*{name}" maxlength="50" placeholder="例如：國泰活存、錢包、玉山信用卡" required>
+        <div class="field-error" th:errors="*{name}"></div>
+    </div>
+    <div class="field">
+        <label for="type">類型</label>
+        <select th:field="*{type}">
+            <option th:each="t : ${accountTypes}" th:value="${t}" th:text="${t.label}">銀行活存</option>
+        </select>
+    </div>
+    <div class="field">
+        <label for="balance">目前餘額（負債填欠款）</label>
+        <input type="number" th:field="*{balance}" step="any" required>
+        <div class="field-error" th:errors="*{balance}"></div>
+    </div>
+    <div class="field">
+        <label for="note">備註</label>
+        <input type="text" th:field="*{note}" maxlength="200">
+    </div>
+    <div class="field">
+        <button class="btn primary" type="submit" th:text="${horizontal} ? '新增帳戶' : '儲存'">新增</button>
+    </div>
+</div>
+
+<!-- 定存表單欄位 -->
+<div th:fragment="depositFields(submitLabel)" th:object="${depositForm}">
+    <div class="form-grid-3" style="margin-bottom: 14px">
+        <div class="field">
+            <label for="bank">銀行</label>
+            <input type="text" th:field="*{bank}" maxlength="50" placeholder="例如：台灣銀行" required>
+            <div class="field-error" th:errors="*{bank}"></div>
+        </div>
+        <div class="field">
+            <label for="principal">本金</label>
+            <input type="number" th:field="*{principal}" min="1" step="any" placeholder="500000" required>
+            <div class="field-error" th:errors="*{principal}"></div>
+        </div>
+        <div class="field">
+            <label for="annualRate">年利率（%）</label>
+            <input type="number" th:field="*{annualRate}" min="0" max="20" step="0.001" placeholder="1.7" required>
+            <div class="field-error" th:errors="*{annualRate}"></div>
+        </div>
+        <div class="field">
+            <label for="startDate">起存日</label>
+            <input type="date" th:field="*{startDate}" required>
+            <div class="field-error" th:errors="*{startDate}"></div>
+        </div>
+        <div class="field">
+            <label for="termMonths">期數（月）</label>
+            <input type="number" th:field="*{termMonths}" min="1" max="120" required>
+            <div class="field-error" th:errors="*{termMonths}"></div>
+        </div>
+        <div class="field">
+            <label for="rateType">計息方式</label>
+            <select th:field="*{rateType}">
+                <option th:each="t : ${rateTypes}" th:value="${t}" th:text="${t.label}">固定</option>
+            </select>
+        </div>
+        <div class="field">
+            <label for="payout">領息方式</label>
+            <select th:field="*{payout}">
+                <option th:each="t : ${payoutTypes}" th:value="${t}" th:text="${t.label}">到期領回</option>
+            </select>
+        </div>
+        <div class="field">
+            <label for="maturityAction">到期處理</label>
+            <select th:field="*{maturityAction}">
+                <option th:each="t : ${maturityActions}" th:value="${t}" th:text="${t.label}">自動續存</option>
+            </select>
+        </div>
+        <div class="field">
+            <label for="note">備註</label>
+            <input type="text" th:field="*{note}" maxlength="200">
+        </div>
+    </div>
+    <button class="btn primary" type="submit" th:text="${submitLabel}">新增定存</button>
+</div>
+
+</body>
+</html>

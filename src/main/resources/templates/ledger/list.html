@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout('記帳', ~{::#page}, ~{})}">
+<body>
+<div id="page">
+    <div class="page-head">
+        <div>
+            <h1>記帳</h1>
+            <div class="sub">每一筆花費，都是你用工作時間換來的</div>
+        </div>
+        <form class="month-nav" method="get" th:action="@{/ledger}">
+            <a class="btn sm" th:href="@{/ledger(month=${month.minusMonths(1)})}">← 上個月</a>
+            <strong th:text="${@fmt.month(month)}">2026 年 11 月</strong>
+            <a class="btn sm" th:href="@{/ledger(month=${month.plusMonths(1)})}">下個月 →</a>
+            <input type="month" name="month" th:value="${month}" onchange="this.form.submit()">
+        </form>
+    </div>
+
+    <!-- 快速記帳 -->
+    <div class="card" style="margin-bottom: 18px">
+        <h2>＋ 記一筆</h2>
+        <form th:replace="~{fragments/entry-form :: entryForm(@{/ledger}, '記一筆', true)}"></form>
+    </div>
+
+    <!-- 本月摘要 -->
+    <div class="grid cols-4">
+        <div class="card kpi"><div class="label">收入</div><div class="value income" th:text="${@fmt.cur(report.income())}">$0</div></div>
+        <div class="card kpi"><div class="label">支出</div><div class="value expense" th:text="${@fmt.cur(report.expense())}">$0</div>
+            <div class="hint" th:if="${payRate.configured and report.expense().signum() > 0}" th:text="'= ' + ${payRate.describe(report.expense())}"></div></div>
+        <div class="card kpi"><div class="label">結餘</div><div class="value" th:text="${@fmt.cur(report.net())}">$0</div></div>
+        <div class="card kpi"><div class="label">儲蓄率</div><div class="value" th:text="${@fmt.pct(report.savingsRate())}">—</div>
+            <div class="hint"><a th:href="@{/ledger/report(month=${month})}">看月報表 →</a></div></div>
+    </div>
+
+    <!-- 明細 -->
+    <div class="card">
+        <h2>
+            <span th:text="'明細（' + ${#lists.size(entries)} + ' 筆）'">明細</span>
+            <form method="get" th:action="@{/ledger}" style="display:flex; gap:8px; font-weight:400">
+                <input type="hidden" name="month" th:value="${month}">
+                <select name="type" onchange="this.form.submit()" style="width:110px">
+                    <option value="">全部類型</option>
+                    <option value="EXPENSE" th:selected="${filter.type() != null and filter.type().name() == 'EXPENSE'}">支出</option>
+                    <option value="INCOME" th:selected="${filter.type() != null and filter.type().name() == 'INCOME'}">收入</option>
+                </select>
+                <select name="categoryId" onchange="this.form.submit()" style="width:150px">
+                    <option value="">全部分類</option>
+                    <option th:each="c : ${expenseCategories}" th:value="${c.id}" th:text="${c.displayName}" th:selected="${c.id == filter.categoryId()}"></option>
+                    <option th:each="c : ${incomeCategories}" th:value="${c.id}" th:text="${c.displayName}" th:selected="${c.id == filter.categoryId()}"></option>
+                </select>
+                <select name="accountId" onchange="this.form.submit()" style="width:150px">
+                    <option value="">全部帳戶</option>
+                    <option th:each="a : ${accounts}" th:value="${a.id}" th:text="${a.name}" th:selected="${a.id == filter.accountId()}"></option>
+                </select>
+            </form>
+        </h2>
+        <div class="table-wrap" th:unless="${#lists.isEmpty(entries)}">
+            <table class="sortable">
+                <thead>
+                <tr>
+                    <th data-sort="text">日期</th>
+                    <th data-sort="text">類型</th>
+                    <th data-sort="text">分類</th>
+                    <th>備註</th>
+                    <th data-sort="text">帳戶</th>
+                    <th data-sort="num" class="num">金額</th>
+                    <th data-sort="num" class="num">= 工作時間</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="e : ${entries}">
+                    <td th:text="${#temporals.format(e.entryDate, 'yyyy-MM-dd (E)')}">2026-11-18</td>
+                    <td><span class="badge" th:classappend="${e.type.name()}" th:text="${e.type.label}">支出</span></td>
+                    <td th:text="${e.category.displayName}">餐飲</td>
+                    <td class="muted" th:text="${e.note}">午餐</td>
+                    <td th:text="${e.account != null} ? ${e.account.name} : '—'">—</td>
+                    <td class="num" th:data-value="${e.amount}" th:classappend="${e.type.name() == 'INCOME'} ? 'income' : 'expense'"
+                        th:text="(${e.type.name() == 'INCOME'} ? '+' : '−') + ${@fmt.cur(e.amount)}">$0</td>
+                    <td class="num muted small" th:data-value="${payRate.workMinutes(e.amount)}" th:text="${payRate.describe(e.amount)}"></td>
+                    <td class="actions">
+                        <a class="btn link" th:href="@{/ledger/{id}/edit(id=${e.id})}">編輯</a>
+                        <form method="post" th:action="@{/ledger/{id}/delete(id=${e.id})}" data-confirm="確定刪除這筆紀錄？帳戶餘額會一起調回。">
+                            <button class="btn link danger" type="submit">刪除</button>
+                        </form>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="empty" th:if="${#lists.isEmpty(entries)}">這個月還沒有紀錄（或沒有符合篩選條件的紀錄）</div>
+    </div>
+</div>
+</body>
+</html>

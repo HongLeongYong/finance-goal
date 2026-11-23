@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout('目標試算', ~{::#page}, ~{})}">
+<body>
+<div id="page">
+    <div class="page-head">
+        <div>
+            <h1>目標試算</h1>
+            <div class="sub">想去哪 → 要花多久 → 今天該做什麼</div>
+        </div>
+        <a class="btn primary" href="#new-goal" onclick="document.getElementById('new-goal').open = true">＋ 新增目標</a>
+    </div>
+
+    <!-- 目前的起點 -->
+    <div class="grid cols-3">
+        <div class="card kpi"><div class="label">目前本金（淨資產）</div><div class="value" th:text="${@fmt.cur(defaults.principal())}">$0</div></div>
+        <div class="card kpi"><div class="label">每月可存</div><div class="value income" th:text="${@fmt.cur(defaults.monthlySaving())}">$0</div>
+            <div class="hint" th:text="${defaults.savingBasis()}">近 3 個月平均</div></div>
+        <div class="card kpi"><div class="label">資產加權年報酬</div><div class="value" th:text="${defaults.annualReturnPct()} + '%'">0%</div>
+            <div class="hint">現金、活存 0%，定存依利率，股票以 5% 估</div></div>
+    </div>
+
+    <!-- 新增目標：放在清單上面，有目標時預設收合 -->
+    <details class="card" id="new-goal" style="margin-bottom: 20px"
+             th:open="${openForm != null or #lists.isEmpty(results)}">
+        <summary>新增目標</summary>
+        <form th:replace="~{fragments/goal-form :: goalForm(@{/goals}, '開始試算')}"></form>
+    </details>
+
+    <!-- 目標清單 -->
+    <div class="grid cols-2" th:unless="${#lists.isEmpty(results)}">
+        <a class="card goal-card" th:each="r : ${results}" th:href="@{/goals/{id}(id=${r.goal().id})}">
+            <div class="goal-card-head">
+                <strong th:text="${r.goal().name}">財務自由</strong>
+                <span class="badge ACTIVE" th:text="${r.goal().mode.label}">模式</span>
+            </div>
+            <div class="small muted" th:if="${r.hasTarget()}">
+                目標 <strong th:text="${@fmt.cur(r.target())}">$0</strong>
+                <span th:if="${r.goal().targetType.name() == 'PASSIVE_INCOME'}"
+                      th:text="'（每月被動收入 ' + ${@fmt.cur(r.goal().monthlyPassiveIncome)} + '）'"></span>
+            </div>
+            <div class="goal-headline" th:text="${r.headline()}">每月要存 $53,794</div>
+            <div class="small muted" th:text="${r.subline()}">比現在多</div>
+            <div th:if="${r.hasTarget()}" style="margin-top: 10px">
+                <div class="bar"><span th:style="'width:' + ${r.progressPercent()} + '%'"></span></div>
+                <div class="small muted" th:text="'目前進度 ' + ${r.progressPercent()} + '%'">目前進度</div>
+                <div class="small" th:if="${r.contributions() != null}"
+                     th:classappend="${r.contributions().thisMonth().compareTo(r.plannedMonthly()) >= 0} ? 'income' : 'expense'"
+                     th:text="'💰 累積式・本月已存 ' + ${@fmt.cur(r.contributions().thisMonth())} + ' / 應存 ' + ${@fmt.cur(r.plannedMonthly())}"></div>
+            </div>
+        </a>
+    </div>
+</div>
+</body>
+</html>

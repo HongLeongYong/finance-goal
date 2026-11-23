@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "finance-goal-preview",
+      "runtimeExecutable": "./mvnw",
+      "runtimeArgs": ["spring-boot:test-run", "-Dspring-boot.run.profiles=test"],
+      "port": 8081
+    },
+    {
+      "name": "finance-goal",
+      "runtimeExecutable": "./mvnw",
+      "runtimeArgs": ["spring-boot:run"],
+      "port": 8081
+    }
+  ]
+}

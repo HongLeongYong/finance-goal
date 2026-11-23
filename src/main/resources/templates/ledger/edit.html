@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout('編輯記帳', ~{::#page}, ~{})}">
+<body>
+<div id="page">
+    <div class="page-head">
+        <div>
+            <h1>編輯記帳</h1>
+            <div class="sub">修改後，帳戶餘額會自動重新計算</div>
+        </div>
+        <a class="btn" th:href="@{/ledger}">← 回記帳</a>
+    </div>
+    <div class="card" style="max-width: 640px">
+        <form th:replace="~{fragments/entry-form :: entryForm(@{/ledger/{id}(id=${entryId})}, '儲存', false)}"></form>
+    </div>
+</div>
+</body>
+</html>

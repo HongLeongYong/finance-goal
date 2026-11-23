@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" xmlns:th="http://www.thymeleaf.org">
+<body>
+<!-- 記帳表單：新增（橫排）和編輯（直排）共用 -->
+<form th:fragment="entryForm(action, submitLabel, horizontal)"
+      class="entry-form" method="post" th:action="${action}" th:object="${entryForm}"
+      th:data-per-minute="${payRate.perMinute()}" th:data-hours-per-day="${payRate.workHoursPerDay()}">
+
+    <div class="flash err" th:if="${#fields.hasGlobalErrors()}" th:each="err : ${#fields.globalErrors()}" th:text="${err}">錯誤</div>
+
+    <div th:class="${horizontal} ? 'form-row' : 'form-stack'"
+         th:style="${horizontal} ? 'grid-template-columns: auto 150px 150px 180px 170px 1fr auto' : ''">
+        <div class="field">
+            <label>類型</label>
+            <div class="type-toggle">
+                <input type="radio" th:field="*{type}" value="EXPENSE" id="type-expense"><label for="type-expense">支出</label>
+                <input type="radio" th:field="*{type}" value="INCOME" id="type-income"><label for="type-income">收入</label>
+            </div>
+        </div>
+        <div class="field">
+            <label for="entryDate">日期</label>
+            <input type="date" th:field="*{entryDate}" required>
+            <div class="field-error" th:errors="*{entryDate}"></div>
+        </div>
+        <div class="field">
+            <label for="amount">金額</label>
+            <input type="number" th:field="*{amount}" min="0.01" step="any" placeholder="0" required autofocus>
+            <div class="field-error" th:errors="*{amount}"></div>
+            <div class="work-preview"></div>
+        </div>
+        <div class="field">
+            <label for="categoryId">分類</label>
+            <select th:field="*{categoryId}" required>
+                <optgroup label="支出" data-type="EXPENSE">
+                    <option th:each="c : ${expenseCategories}" th:value="${c.id}" th:text="${c.displayName}">餐飲</option>
+                </optgroup>
+                <optgroup label="收入" data-type="INCOME">
+                    <option th:each="c : ${incomeCategories}" th:value="${c.id}" th:text="${c.displayName}">薪水</option>
+                </optgroup>
+            </select>
+            <div class="field-error" th:errors="*{categoryId}"></div>
+        </div>
+        <div class="field">
+            <label for="accountId">帳戶（選填）</label>
+            <select th:field="*{accountId}">
+                <option value="">不指定</option>
+                <option th:each="a : ${accounts}" th:value="${a.id}" th:text="${a.name} + '（' + ${a.type.label} + '）'">帳戶</option>
+            </select>
+        </div>
+        <div class="field">
+            <label for="note">備註</label>
+            <input type="text" th:field="*{note}" maxlength="200" placeholder="例如：午餐">
+        </div>
+        <div class="field">
+            <button type="submit" class="btn primary" th:text="${submitLabel}">記一筆</button>
+        </div>
+    </div>
+</form>
+</body>
+</html>

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout('資產與定存', ~{::#page}, ~{::#page-scripts})}">
+<body>
+<div id="page">
+    <div class="page-head">
+        <div>
+            <h1>資產與定存</h1>
+            <div class="sub">淨資產 = 現金 + 銀行活存 + 定存 + 股票市值 − 負債</div>
+        </div>
+        <form method="post" th:action="@{/assets/snapshot}">
+            <button class="btn" type="submit">📸 更新本月快照</button>
+        </form>
+    </div>
+
+    <div class="grid cols-6">
+        <div class="card kpi primary"><div class="label">淨資產</div><div class="value" th:text="${@fmt.cur(summary.netWorth())}">$0</div></div>
+        <div class="card kpi"><div class="label">💵 現金</div><div class="value" th:text="${@fmt.cur(summary.cash())}">$0</div></div>
+        <div class="card kpi"><div class="label">🏦 銀行活存</div><div class="value" th:text="${@fmt.cur(summary.bank())}">$0</div></div>
+        <div class="card kpi"><div class="label">🔒 定存</div><div class="value" th:text="${@fmt.cur(summary.deposits())}">$0</div>
+            <div class="hint" th:text="'每月利息 $' + ${@fmt.money(summary.depositMonthlyInterest())}"></div></div>
+        <div class="card kpi"><div class="label">📈 股票</div><div class="value" th:text="${@fmt.cur(summary.stocks())}">$0</div>
+            <div class="hint"><a th:href="@{/stocks}">看持股 →</a></div></div>
+        <div class="card kpi"><div class="label">💳 負債</div><div class="value expense" th:text="${@fmt.cur(summary.liabilities())}">$0</div></div>
+    </div>
+
+    <div class="grid cols-1-2">
+        <div class="card">
+            <h2>資產配置</h2>
+            <div class="chart-box" th:if="${summary.totalAssets().signum() > 0}"><canvas id="allocation-chart"></canvas></div>
+            <div class="empty" th:unless="${summary.totalAssets().signum() > 0}">新增帳戶或定存後就會出現</div>
+        </div>
+        <div class="card">
+            <h2>淨資產趨勢 <span class="aside">每月一筆快照（每天 23:55 自動更新當月）</span></h2>
+            <div class="chart-box" th:unless="${#lists.isEmpty(history)}"><canvas id="networth-chart"></canvas></div>
+            <div class="empty" th:if="${#lists.isEmpty(history)}">還沒有快照</div>
+        </div>
+    </div>
+
+    <!-- 帳戶 -->
+    <div class="card" id="accounts" style="margin-bottom: 18px">
+        <h2>帳戶 <span class="aside">記帳時選了帳戶，餘額會自動增減</span></h2>
+        <table class="sortable" th:unless="${#lists.isEmpty(accounts)}" style="margin-bottom: 16px">
+            <thead><tr>
+                <th data-sort="text">名稱</th><th data-sort="text">類型</th>
+                <th data-sort="num" class="num">餘額</th><th>備註</th><th></th>
+            </tr></thead>
+            <tbody>
+            <tr th:each="a : ${accounts}">
+                <td><strong th:text="${a.name}">帳戶</strong></td>
+                <td th:text="${a.type.label}">銀行活存</td>
+                <td class="num" th:data-value="${a.balance}" th:classappend="${a.type.liability} ? 'expense'"
+                    th:text="(${a.type.liability} ? '−' : '') + ${@fmt.cur(a.balance)}">$0</td>
+                <td class="muted" th:text="${a.note}"></td>
+                <td class="actions">
+                    <a class="btn link" th:href="@{/assets/accounts/{id}/edit(id=${a.id})}">編輯</a>
+                    <form method="post" th:action="@{/assets/accounts/{id}/delete(id=${a.id})}"
+                          data-confirm="確定移除這個帳戶？有記帳紀錄的帳戶會封存保留。">
+                        <button class="btn link danger" type="submit">移除</button>
+                    </form>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+        <form method="post" th:action="@{/assets/accounts}">
+            <div th:replace="~{fragments/asset-forms :: accountFields(true)}"></div>
+        </form>
+    </div>
+
+    <!-- 定存 -->
+    <div class="card" id="deposits" style="margin-bottom: 18px">
+        <h2>定存 <span class="aside">自動續存的定存會自動滾到目前這一期</span></h2>
+        <div class="table-wrap" th:unless="${#lists.isEmpty(deposits)}">
+            <table class="sortable">
+                <thead><tr>
+                    <th data-sort="text">銀行</th>
+                    <th data-sort="num" class="num">本金</th>
+                    <th data-sort="num" class="num">年利率</th>
+                    <th data-sort="text">本期</th>
+                    <th data-sort="text">到期日</th>
+                    <th>領息 / 到期處理</th>
+                    <th data-sort="num" class="num">每月利息</th>
+                    <th data-sort="num" class="num">已累積利息</th>
+                    <th data-sort="num" class="num">到期本息</th>
+                    <th data-sort="num" class="num" title="未滿 1 個月不計息；滿 1 個月以上按實存月數、目前利率打八折估算">中途解約 ⓘ</th>
+                    <th data-sort="num">狀態</th>
+                    <th></th>
+                </tr></thead>
+                <tbody>
+                <tr th:each="v : ${deposits}" th:with="d=${v.deposit()}">
+                    <td><strong th:text="${d.bank}">銀行</strong><div class="small muted" th:text="${d.note}"></div></td>
+                    <td class="num" th:data-value="${v.cyclePrincipal()}" th:text="${@fmt.cur(v.cyclePrincipal())}">$0</td>
+                    <td class="num" th:data-value="${d.annualRate}">
+                        <span th:text="${@fmt.rate(d.annualRate)}">1.7%</span>
+                        <div class="small muted" th:text="${d.rateType.label}">固定</div>
+                    </td>
+                    <td th:data-value="${v.cycleStart()}">
+                        <span th:text="${#temporals.format(v.cycleStart(), 'yyyy/MM/dd')}">起存</span>
+                        <div class="small muted" th:text="${d.termMonths} + ' 個月' + (${v.cycle() > 1} ? '・第 ' + ${v.cycle()} + ' 期' : '')">12 個月</div>
+                    </td>
+                    <td th:data-value="${v.maturityDate()}" th:text="${#temporals.format(v.maturityDate(), 'yyyy/MM/dd')}">到期</td>
+                    <td class="small">
+                        <div th:text="${d.payout.label}">到期領回</div>
+                        <div class="muted" th:text="${d.maturityAction.label}">自動續存</div>
+                    </td>
+                    <td class="num income" th:data-value="${v.monthlyInterest()}" th:text="${@fmt.cur(v.monthlyInterest())}">$0</td>
+                    <td class="num" th:data-value="${v.accruedInterest()}" th:text="${@fmt.cur(v.accruedInterest())}">$0</td>
+                    <td class="num" th:data-value="${v.maturityAmount()}">
+                        <span th:text="${@fmt.cur(v.maturityAmount())}">$0</span>
+                        <div class="small income" th:text="'+$' + ${@fmt.money(v.totalInterest())}">利息</div>
+                    </td>
+                    <td class="num muted" th:data-value="${v.earlyTerminationInterest()}" th:text="${@fmt.cur(v.earlyTerminationInterest())}">$0</td>
+                    <td th:data-value="${v.daysToMaturity()}" style="min-width: 120px">
+                        <span class="badge" th:classappend="${v.status().name()}" th:text="${v.status().label}">存款中</span>
+                        <div class="bar" style="margin-top:6px"><span th:style="'width:' + ${v.progressPercent()} + '%'"></span></div>
+                        <div class="small muted" th:if="${v.daysToMaturity() > 0}" th:text="'剩 ' + ${v.daysToMaturity()} + ' 天'"></div>
+                    </td>
+                    <td class="actions">
+                        <a class="btn link" th:href="@{/assets/deposits/{id}/edit(id=${d.id})}">編輯</a>
+                        <form method="post" th:action="@{/assets/deposits/{id}/close(id=${d.id})}"
+                              data-confirm="標記為已解約 / 已領回？之後不再計入資產。">
+                            <button class="btn link" type="submit">結束</button>
+                        </form>
+                        <form method="post" th:action="@{/assets/deposits/{id}/delete(id=${d.id})}"
+                              data-confirm="確定刪除這筆定存？（輸入錯誤才需要刪除，正常到期請用「結束」）">
+                            <button class="btn link danger" type="submit">刪除</button>
+                        </form>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="empty" th:if="${#lists.isEmpty(deposits)}">還沒有定存</div>
+    </div>
+
+    <details class="card" th:open="${openDepositForm != null or #lists.isEmpty(deposits)}">
+        <summary>新增定存</summary>
+        <form method="post" th:action="@{/assets/deposits}">
+            <div th:replace="~{fragments/asset-forms :: depositFields('新增定存')}"></div>
+        </form>
+    </details>
+
+    <details class="card" style="margin-top: 18px" th:unless="${#lists.isEmpty(closedDeposits)}">
+        <summary th:text="'已結束的定存（' + ${#lists.size(closedDeposits)} + '）'">已結束的定存</summary>
+        <table>
+            <thead><tr><th>銀行</th><th class="num">本金</th><th class="num">年利率</th><th>起存日</th><th>期數</th><th></th></tr></thead>
+            <tbody>
+            <tr th:each="d : ${closedDeposits}">
+                <td th:text="${d.bank}">銀行</td>
+                <td class="num" th:text="${@fmt.cur(d.principal)}">$0</td>
+                <td class="num" th:text="${@fmt.rate(d.annualRate)}">1.7%</td>
+                <td th:text="${#temporals.format(d.startDate, 'yyyy/MM/dd')}">起存</td>
+                <td th:text="${d.termMonths} + ' 個月'">12 個月</td>
+                <td class="actions">
+                    <form method="post" th:action="@{/assets/deposits/{id}/delete(id=${d.id})}" data-confirm="確定刪除這筆紀錄？">
+                        <button class="btn link danger" type="submit">刪除</button>
+                    </form>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </details>
+</div>
+
+<script id="page-scripts" th:inline="javascript">
+    fgCharts.doughnut('allocation-chart',
+        ['現金', '銀行活存', '定存', '股票'],
+        [ [[${summary.cash()}]], [[${summary.bank()}]], [[${summary.deposits()}]], [[${summary.stocks()}]] ].map(Number));
+    fgCharts.line('networth-chart',
+        [[${history.![snapshotMonth.toString().substring(0, 7)]}]],
+        [[${history.![netWorth]}]].map(Number));
+</script>
+</body>
+</html>

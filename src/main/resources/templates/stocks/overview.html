@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout('台股持股', ~{::#page}, ~{::#page-scripts})}">
+<body>
+<div id="page">
+    <div class="page-head">
+        <div>
+            <h1>台股持股</h1>
+            <div class="sub">
+                股價來源：證交所、櫃買中心 OpenAPI，交易日 14:45、17:30 自動更新
+                <span th:if="${lastFetch != null}"
+                      th:text="'· 最後更新 ' + ${#temporals.format(lastFetch.fetchedAt, 'MM/dd HH:mm')}"></span>
+            </div>
+        </div>
+        <form method="post" th:action="@{/stocks/prices/refresh}" class="refresh-form">
+            <button class="btn" type="submit">🔄 立即更新股價</button>
+        </form>
+    </div>
+
+    <!-- 總覽 -->
+    <div class="grid cols-5">
+        <div class="card kpi primary"><div class="label">股票市值</div><div class="value" th:text="${@fmt.cur(portfolio.marketValue())}">$0</div></div>
+        <div class="card kpi"><div class="label">投入成本</div><div class="value" th:text="${@fmt.cur(portfolio.cost())}">$0</div>
+            <div class="hint">含買進手續費</div></div>
+        <div class="card kpi"><div class="label">未實現損益</div>
+            <div class="value" th:classappend="${portfolio.unrealized().signum() >= 0} ? 'income' : 'expense'"
+                 th:text="${@fmt.cur(portfolio.unrealized())}">$0</div>
+            <div class="hint" th:text="'報酬率 ' + ${@fmt.pct(portfolio.returnRate())}">報酬率</div></div>
+        <div class="card kpi"><div class="label">已實現損益</div>
+            <div class="value" th:classappend="${portfolio.realized().signum() >= 0} ? 'income' : 'expense'"
+                 th:text="${@fmt.cur(portfolio.realized())}">$0</div>
+            <div class="hint">已賣出部分，扣掉手續費和證交稅</div></div>
+        <div class="card kpi"><div class="label">近 12 個月股利</div><div class="value income" th:text="${@fmt.cur(portfolio.dividends12m())}">$0</div>
+            <div class="hint" th:if="${payRate.configured and portfolio.dividends12m().signum() > 0}"
+                 th:text="'= ' + ${payRate.describe(portfolio.dividends12m())}"></div></div>
+    </div>
+
+    <!-- 持股 -->
+    <div class="grid cols-2-1">
+        <div class="card">
+            <h2>持股明細 <span class="aside">平均成本法</span></h2>
+            <div class="table-wrap" th:unless="${#lists.isEmpty(portfolio.holdings())}">
+                <table class="sortable">
+                    <thead><tr>
+                        <th data-sort="text">股票</th>
+                        <th data-sort="num" class="num">持有</th>
+                        <th data-sort="num" class="num">均價</th>
+                        <th data-sort="num" class="num">現價</th>
+                        <th data-sort="num" class="num">市值</th>
+                        <th data-sort="num" class="num">損益</th>
+                        <th data-sort="num" class="num">佔比</th>
+                        <th>手動報價</th>
+                    </tr></thead>
+                    <tbody>
+                    <tr th:each="h : ${portfolio.holdings()}">
+                        <td>
+                            <strong th:text="${h.stock().code}">2330</strong> <span th:text="${h.stock().name}">台積電</span>
+                            <div class="small muted" th:text="${h.stock().market.label} + (${h.stock().etf} ? ' · ETF' : '')">上市</div>
+                        </td>
+                        <td class="num" th:data-value="${h.shares()}" th:text="${h.sharesLabel()}">1 張</td>
+                        <td class="num" th:data-value="${h.avgCost()}" th:text="${@fmt.money(h.avgCost(), 2)}">0</td>
+                        <td class="num" th:data-value="${h.price() != null ? h.price().close : 0}">
+                            <th:block th:if="${h.price() != null}">
+                                <span th:text="${@fmt.money(h.price().close, 2)}">0</span>
+                                <div class="small muted" th:text="${#temporals.format(h.price().priceDate, 'MM/dd')} + ' ' + ${h.price().source.label}"
+                                     th:classappend="${h.price().priceDate.isBefore(today.minusDays(5))} ? 'expense'">11/17 自動</div>
+                            </th:block>
+                            <span class="small expense" th:if="${h.price() == null}">尚無股價</span>
+                        </td>
+                        <td class="num" th:data-value="${h.marketValue()}" th:text="${@fmt.cur(h.marketValue())}">$0</td>
+                        <td class="num" th:data-value="${h.unrealized()}" th:classappend="${h.unrealized().signum() >= 0} ? 'income' : 'expense'">
+                            <span th:text="${@fmt.cur(h.unrealized())}">$0</span>
+                            <div class="small" th:text="${@fmt.pct(h.returnRate())}">0%</div>
+                        </td>
+                        <td class="num" th:data-value="${portfolio.shareOf(h)}" th:text="${@fmt.pct(portfolio.shareOf(h))}">0%</td>
+                        <td>
+                            <form method="post" th:action="@{/stocks/{code}/price(code=${h.stock().code})}" class="inline-price">
+                                <input type="number" name="close" step="0.01" min="0.01" placeholder="價格" required>
+                                <button class="btn sm" type="submit">存</button>
+                            </form>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="empty" th:if="${#lists.isEmpty(portfolio.holdings())}">還沒有持股。在下面記一筆買進吧 👇</div>
+        </div>
+        <div class="card">
+            <h2>持股配置</h2>
+            <div class="chart-box" th:unless="${#lists.isEmpty(portfolio.holdings())}"><canvas id="holding-chart"></canvas></div>
+            <div class="empty" th:if="${#lists.isEmpty(portfolio.holdings())}">—</div>
+        </div>
+    </div>
+
+    <!-- 買賣 -->
+    <details class="card" id="trade" th:open="${openTradeForm != null or #lists.isEmpty(trades)}" style="margin-bottom: 18px">
+        <summary>記一筆買賣</summary>
+        <form method="post" th:action="@{/stocks/trades}" th:object="${tradeForm}" class="trade-form"
+              th:data-fee-discount="${feeDiscount}" th:data-min-fee="${minFee}">
+            <div class="flash err" th:each="err : ${#fields.globalErrors()}" th:text="${err}">錯誤</div>
+            <div class="form-grid-3" style="grid-template-columns: repeat(4, 1fr)">
+                <div class="field">
+                    <label>買進 / 賣出</label>
+                    <div class="type-toggle trade-toggle">
+                        <input type="radio" th:field="*{type}" value="BUY" id="trade-buy"><label for="trade-buy">買進</label>
+                        <input type="radio" th:field="*{type}" value="SELL" id="trade-sell"><label for="trade-sell">賣出</label>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="code">股票代號</label>
+                    <input type="text" th:field="*{code}" maxlength="6" placeholder="例如 0050、2330" required autocomplete="off">
+                    <div class="small muted lookup-result"></div>
+                    <div class="field-error" th:errors="*{code}"></div>
+                </div>
+                <div class="field">
+                    <label for="name">名稱（查不到代號時才要填）</label>
+                    <input type="text" th:field="*{name}" maxlength="50" placeholder="自動帶入">
+                </div>
+                <div class="field">
+                    <label for="tradeDate">成交日</label>
+                    <input type="date" th:field="*{tradeDate}" required>
+                    <div class="field-error" th:errors="*{tradeDate}"></div>
+                </div>
+                <div class="field">
+                    <label for="shares">股數（1 張 = 1000 股）</label>
+                    <input type="number" th:field="*{shares}" min="1" placeholder="1000" required>
+                    <div class="field-error" th:errors="*{shares}"></div>
+                </div>
+                <div class="field">
+                    <label for="price">成交價</label>
+                    <input type="number" th:field="*{price}" min="0.01" step="0.01" required>
+                    <div class="field-error" th:errors="*{price}"></div>
+                </div>
+                <div class="field">
+                    <label for="fee">手續費（空白 = 自動算）</label>
+                    <input type="number" th:field="*{fee}" min="0" step="1">
+                </div>
+                <div class="field">
+                    <label for="tax">證交稅（空白 = 自動算）</label>
+                    <input type="number" th:field="*{tax}" min="0" step="1">
+                </div>
+                <div class="field">
+                    <label for="accountId">交割帳戶（選填）</label>
+                    <select th:field="*{accountId}">
+                        <option value="">不指定（不動帳戶餘額）</option>
+                        <option th:each="a : ${accounts}" th:value="${a.id}" th:text="${a.name}">薪轉帳戶</option>
+                    </select>
+                </div>
+                <div class="field" style="grid-column: span 2">
+                    <label for="note">備註</label>
+                    <input type="text" th:field="*{note}" maxlength="200" placeholder="例如：定期定額">
+                </div>
+            </div>
+            <div class="trade-preview small" style="margin: 12px 0"></div>
+            <button class="btn primary" type="submit">記錄</button>
+        </form>
+    </details>
+
+    <!-- 股利 -->
+    <details class="card" id="dividends" th:open="${openDividendForm != null}" style="margin-bottom: 18px">
+        <summary th:text="'現金股利（' + ${#lists.size(dividends)} + ' 筆）'">現金股利</summary>
+        <form method="post" th:action="@{/stocks/dividends}" th:object="${dividendForm}" th:unless="${#lists.isEmpty(portfolio.holdings())}">
+            <div class="flash err" th:each="err : ${#fields.globalErrors()}" th:text="${err}">錯誤</div>
+            <div class="form-row" style="grid-template-columns: 200px 160px 160px 200px 1fr auto">
+                <div class="field">
+                    <label for="dividendCode">股票</label>
+                    <select id="dividendCode" name="code">
+                        <option th:each="h : ${portfolio.holdings()}" th:value="${h.stock().code}"
+                                th:text="${h.stock().code} + ' ' + ${h.stock().name}"
+                                th:selected="${h.stock().code == dividendForm.code}">0050</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="payDate">發放日</label>
+                    <input type="date" th:field="*{payDate}" required>
+                </div>
+                <div class="field">
+                    <label for="amount">實際入帳金額</label>
+                    <input type="number" th:field="*{amount}" min="1" step="1" required>
+                    <div class="field-error" th:errors="*{amount}"></div>
+                </div>
+                <div class="field">
+                    <label for="dividendAccount">入帳帳戶</label>
+                    <select id="dividendAccount" name="accountId">
+                        <option value="">不指定</option>
+                        <option th:each="a : ${accounts}" th:value="${a.id}" th:text="${a.name}"
+                                th:selected="${a.id == dividendForm.accountId}">薪轉帳戶</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="dividendNote">備註</label>
+                    <input type="text" id="dividendNote" name="note" th:value="*{note}" maxlength="200" placeholder="例如：2026 Q3 配息">
+                </div>
+                <div class="field"><button class="btn primary" type="submit">記錄股利</button></div>
+            </div>
+            <p class="small muted">會同時在記帳新增一筆「📈 股利」收入，月報表、儲蓄率、被動收入都會算進去。</p>
+        </form>
+        <table th:unless="${#lists.isEmpty(dividends)}" style="margin-top: 12px">
+            <thead><tr><th>發放日</th><th>股票</th><th class="num">金額</th><th>備註</th><th></th></tr></thead>
+            <tbody>
+            <tr th:each="d : ${dividends}">
+                <td th:text="${d.payDate}">2026-10-20</td>
+                <td th:text="${d.stock.code} + ' ' + ${d.stock.name}">0050</td>
+                <td class="num income" th:text="${@fmt.cur(d.amount)}">$0</td>
+                <td class="muted" th:text="${d.note}"></td>
+                <td class="actions">
+                    <form method="post" th:action="@{/stocks/dividends/{id}/delete(id=${d.id})}" data-confirm="刪除這筆股利？記帳裡的股利收入也會一起刪除。">
+                        <button class="btn link danger" type="submit">刪除</button>
+                    </form>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </details>
+
+    <!-- 交易紀錄 -->
+    <div class="card" id="trades">
+        <h2 th:text="'交易紀錄（' + ${#lists.size(trades)} + ' 筆）'">交易紀錄</h2>
+        <div class="table-wrap" th:unless="${#lists.isEmpty(trades)}">
+            <table class="sortable">
+                <thead><tr>
+                    <th data-sort="text">日期</th><th data-sort="text">類型</th><th data-sort="text">股票</th>
+                    <th data-sort="num" class="num">股數</th><th data-sort="num" class="num">價格</th>
+                    <th data-sort="num" class="num">成交金額</th><th class="num">手續費</th><th class="num">證交稅</th>
+                    <th data-sort="num" class="num">帳戶金額變動</th><th>帳戶</th><th>備註</th><th></th>
+                </tr></thead>
+                <tbody>
+                <tr th:each="t : ${trades}">
+                    <td th:text="${t.tradeDate}">2026-11-01</td>
+                    <td><span class="badge" th:classappend="${t.type.name() == 'BUY'} ? 'EXPENSE' : 'INCOME'" th:text="${t.type.label}">買進</span></td>
+                    <td th:text="${t.stock.code} + ' ' + ${t.stock.name}">0050</td>
+                    <td class="num" th:data-value="${t.shares}" th:text="${#numbers.formatInteger(t.shares, 1, 'COMMA')}">1,000</td>
+                    <td class="num" th:data-value="${t.price}" th:text="${@fmt.money(t.price, 2)}">0</td>
+                    <td class="num" th:data-value="${t.gross}" th:text="${@fmt.cur(t.gross)}">$0</td>
+                    <td class="num muted" th:text="${@fmt.cur(t.fee)}">$0</td>
+                    <td class="num muted" th:text="${@fmt.cur(t.tax)}">$0</td>
+                    <td class="num" th:data-value="${t.cashFlow}" th:classappend="${t.cashFlow.signum() >= 0} ? 'income' : 'expense'"
+                        th:text="${@fmt.cur(t.cashFlow)}">$0</td>
+                    <td th:text="${t.account != null} ? ${t.account.name} : '—'">—</td>
+                    <td class="muted" th:text="${t.note}"></td>
+                    <td class="actions">
+                        <form method="post" th:action="@{/stocks/trades/{id}/delete(id=${t.id})}" data-confirm="刪除這筆交易？交割帳戶餘額會一起調回。">
+                            <button class="btn link danger" type="submit">刪除</button>
+                        </form>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="empty" th:if="${#lists.isEmpty(trades)}">還沒有交易紀錄</div>
+    </div>
+</div>
+
+<script id="page-scripts" th:inline="javascript">
+    fgCharts.doughnut('holding-chart',
+        [[${portfolio.holdings().![stock().code + ' ' + stock().name]}]],
+        [[${portfolio.holdings().![marketValue()]}]].map(Number));
+</script>
+</body>
+</html>

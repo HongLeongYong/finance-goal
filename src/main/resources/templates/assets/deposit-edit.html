@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout('編輯定存', ~{::#page}, ~{})}">
+<body>
+<div id="page">
+    <div class="page-head">
+        <div>
+            <h1>編輯定存</h1>
+            <div class="sub">機動利率調整時，直接改年利率即可</div>
+        </div>
+        <a class="btn" th:href="@{/assets}">← 回資產</a>
+    </div>
+    <div class="card" style="max-width: 900px">
+        <form method="post" th:action="@{/assets/deposits/{id}(id=${depositId})}">
+            <div th:replace="~{fragments/asset-forms :: depositFields('儲存')}"></div>
+        </form>
+    </div>
+</div>
+</body>
+</html>

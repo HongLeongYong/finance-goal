@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout('月報表', ~{::#page}, ~{::#page-scripts})}">
+<body>
+<div id="page">
+    <div class="page-head">
+        <div>
+            <h1>月報表</h1>
+            <div class="sub">錢花去哪裡了？和上個月比如何？</div>
+        </div>
+        <form class="month-nav" method="get" th:action="@{/ledger/report}">
+            <a class="btn sm" th:href="@{/ledger/report(month=${month.minusMonths(1)})}">← 上個月</a>
+            <strong th:text="${@fmt.month(month)}">2026 年 11 月</strong>
+            <a class="btn sm" th:href="@{/ledger/report(month=${month.plusMonths(1)})}">下個月 →</a>
+            <input type="month" name="month" th:value="${month}" onchange="this.form.submit()">
+        </form>
+    </div>
+
+    <div class="grid cols-4">
+        <div class="card kpi"><div class="label">收入</div><div class="value income" th:text="${@fmt.cur(report.income())}">$0</div>
+            <div class="hint" th:text="'上個月 $' + ${@fmt.money(report.lastMonthIncome())}"></div></div>
+        <div class="card kpi"><div class="label">支出</div><div class="value expense" th:text="${@fmt.cur(report.expense())}">$0</div>
+            <div class="hint" th:text="'上個月 $' + ${@fmt.money(report.lastMonthExpense())}"></div></div>
+        <div class="card kpi"><div class="label">結餘</div><div class="value" th:text="${@fmt.cur(report.net())}">$0</div>
+            <div class="hint" th:if="${payRate.configured and report.expense().signum() > 0}" th:text="'本月花費 = ' + ${payRate.describe(report.expense())}"></div></div>
+        <div class="card kpi primary"><div class="label">儲蓄率</div><div class="value" th:text="${@fmt.pct(report.savingsRate())}">—</div>
+            <div class="hint">（收入 − 支出）÷ 收入</div></div>
+    </div>
+
+    <div class="grid cols-1-2">
+        <div class="card">
+            <h2>支出分布</h2>
+            <div class="chart-box" th:unless="${#lists.isEmpty(report.expenseRows())}"><canvas id="expense-chart"></canvas></div>
+            <div class="empty" th:if="${#lists.isEmpty(report.expenseRows())}">沒有支出紀錄</div>
+        </div>
+        <div class="card">
+            <h2>支出分類 <span class="aside">和上個月比較</span></h2>
+            <table class="sortable" th:unless="${#lists.isEmpty(report.expenseRows())}">
+                <thead><tr>
+                    <th data-sort="text">分類</th>
+                    <th data-sort="num" class="num">金額</th>
+                    <th>佔比</th>
+                    <th data-sort="num" class="num">上個月</th>
+                    <th data-sort="num" class="num">變化</th>
+                    <th class="num">= 工作時間</th>
+                </tr></thead>
+                <tbody>
+                <tr th:each="row : ${report.expenseRows()}">
+                    <td th:text="${row.displayName()}">餐飲</td>
+                    <td class="num" th:data-value="${row.amount()}" th:text="${@fmt.cur(row.amount())}">$0</td>
+                    <td style="min-width:140px">
+                        <div style="display:flex; align-items:center; gap:8px">
+                            <div class="bar expense" style="flex:1"><span th:style="'width:' + ${@fmt.pctNumber(row.share())} + '%'"></span></div>
+                            <span class="small muted" th:text="${@fmt.pct(row.share())}">0%</span>
+                        </div>
+                    </td>
+                    <td class="num muted" th:data-value="${row.lastMonthAmount()}" th:text="${@fmt.cur(row.lastMonthAmount())}">$0</td>
+                    <td class="num" th:data-value="${row.changeRate() ?: 0}"
+                        th:classappend="${row.changeRate() != null and row.changeRate().signum() > 0} ? 'expense' : 'income'"
+                        th:text="${row.changeRate() == null} ? '新增' : ((${row.changeRate().signum() > 0} ? '▲ ' : '▼ ') + ${@fmt.pct(row.changeRate().abs())})">—</td>
+                    <td class="num small muted" th:text="${payRate.describe(row.amount())}"></td>
+                </tr>
+                </tbody>
+            </table>
+            <div class="empty" th:if="${#lists.isEmpty(report.expenseRows())}">沒有支出紀錄</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>收入來源</h2>
+        <table th:unless="${#lists.isEmpty(report.incomeRows())}">
+            <thead><tr><th>分類</th><th class="num">金額</th><th>佔比</th><th class="num">上個月</th></tr></thead>
+            <tbody>
+            <tr th:each="row : ${report.incomeRows()}">
+                <td th:text="${row.displayName()}">薪水</td>
+                <td class="num income" th:text="${@fmt.cur(row.amount())}">$0</td>
+                <td style="min-width:200px"><div class="bar income"><span th:style="'width:' + ${@fmt.pctNumber(row.share())} + '%'"></span></div></td>
+                <td class="num muted" th:text="${@fmt.cur(row.lastMonthAmount())}">$0</td>
+            </tr>
+            </tbody>
+        </table>
+        <div class="empty" th:if="${#lists.isEmpty(report.incomeRows())}">沒有收入紀錄</div>
+    </div>
+</div>
+
+<script id="page-scripts" th:inline="javascript">
+    fgCharts.doughnut('expense-chart',
+        [[${report.expenseRows().![displayName()]}]],
+        [[${report.expenseRows().![amount()]}]].map(Number));
+</script>
+</body>
+</html>

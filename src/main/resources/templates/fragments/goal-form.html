@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" xmlns:th="http://www.thymeleaf.org">
+<body>
+<!-- 目標表單：新增、編輯共用。依「目標內容」「計算模式」顯示需要的欄位 -->
+<form th:fragment="goalForm(action, submitLabel)" class="goal-form" method="post" th:action="${action}" th:object="${goalForm}">
+
+    <div class="flash err" th:if="${#fields.hasGlobalErrors()}" th:each="err : ${#fields.globalErrors()}" th:text="${err}">錯誤</div>
+
+    <h3 class="form-section">1. 目標是什麼？</h3>
+    <div class="form-grid-3">
+        <div class="field">
+            <label for="name">目標名稱</label>
+            <input type="text" th:field="*{name}" maxlength="50" placeholder="例如：財務自由、買車頭期款" required>
+            <div class="field-error" th:errors="*{name}"></div>
+        </div>
+        <div class="field">
+            <label for="targetType">目標內容</label>
+            <select th:field="*{targetType}">
+                <option th:each="t : ${targetTypes}" th:value="${t}" th:text="${t.label}">存到一筆金額</option>
+            </select>
+        </div>
+        <div class="field" data-show-type="AMOUNT">
+            <label for="targetAmount">目標金額</label>
+            <input type="number" th:field="*{targetAmount}" min="1" step="any" placeholder="10000000">
+            <div class="field-error" th:errors="*{targetAmount}"></div>
+            <div class="field-error" th:errors="*{targetAmountPresent}"></div>
+        </div>
+        <div class="field" data-show-type="PASSIVE_INCOME">
+            <label for="monthlyPassiveIncome">每月想要的被動收入</label>
+            <input type="number" th:field="*{monthlyPassiveIncome}" min="1" step="any" placeholder="30000">
+            <div class="field-error" th:errors="*{monthlyPassiveIncome}"></div>
+            <div class="field-error" th:errors="*{passiveIncomePresent}"></div>
+        </div>
+        <div class="field" data-show-type="PASSIVE_INCOME">
+            <label for="withdrawalRate">安全提領率（%）</label>
+            <input type="number" th:field="*{withdrawalRate}" min="0.5" max="20" step="0.1">
+            <div class="small muted">目標金額 = 每月被動收入 × 12 ÷ 提領率</div>
+            <div class="field-error" th:errors="*{withdrawalRate}"></div>
+        </div>
+    </div>
+
+    <h3 class="form-section">2. 想算什麼？</h3>
+    <div class="mode-picker">
+        <label th:each="m : ${modes}" class="mode-option">
+            <input type="radio" th:field="*{mode}" th:value="${m}">
+            <span th:text="${m.label}">模式</span>
+        </label>
+    </div>
+    <div class="form-grid-3" style="margin-top: 12px">
+        <div class="field" data-show-mode="PROJECT PLAN">
+            <label for="years">年數</label>
+            <input type="number" th:field="*{years}" min="1" max="60" placeholder="10">
+            <div class="field-error" th:errors="*{yearsValid}"></div>
+        </div>
+    </div>
+
+    <h3 class="form-section">3. 試算假設 <span class="small muted">（空白 = 用你的資料自動帶入）</span></h3>
+    <div class="form-grid-3">
+        <div class="field">
+            <label for="principalMode">目前本金從哪裡來</label>
+            <select th:field="*{principalMode}">
+                <option th:each="m : ${principalModes}" th:value="${m}" th:text="${m.label}">自動</option>
+            </select>
+            <div class="small muted" data-show-principal="AUTO" th:text="'目前淨資產 ' + ${@fmt.cur(defaults.principal())}"></div>
+            <div class="small muted" data-show-principal="CONTRIBUTIONS">建立後在目標頁記「存入 / 提出」，本金自動加總</div>
+        </div>
+        <div class="field" data-show-principal="MANUAL">
+            <label for="principalOverride">目前本金（手動）</label>
+            <input type="number" th:field="*{principalOverride}" min="0" step="any" placeholder="例如 50000">
+            <div class="field-error" th:errors="*{principalOverride}"></div>
+            <div class="field-error" th:errors="*{principalPresent}"></div>
+        </div>
+        <div class="field">
+            <label for="monthlySavingOverride">每月可存</label>
+            <input type="number" th:field="*{monthlySavingOverride}" step="any"
+                   th:placeholder="'自動：' + ${@fmt.cur(defaults.monthlySaving())}">
+            <div class="small muted" th:text="${defaults.savingBasis()}">近 3 個月平均</div>
+        </div>
+        <div class="field">
+            <label for="annualReturnOverride">預期年報酬（%）</label>
+            <input type="number" th:field="*{annualReturnOverride}" min="-20" max="50" step="0.1"
+                   th:placeholder="'自動：' + ${defaults.annualReturnPct()} + '%'">
+            <div class="small muted">自動值：現金和活存 0%，定存用實際利率，股票以 5% 估，依金額加權</div>
+            <div class="field-error" th:errors="*{annualReturnOverride}"></div>
+        </div>
+        <div class="field">
+            <label for="inflationRate">通膨率（%，選填）</label>
+            <input type="number" th:field="*{inflationRate}" min="0" max="20" step="0.1" placeholder="不考慮通膨（台灣長期約 2%）">
+            <div class="small muted">填了之後，所有金額都以「今天的購買力」計算</div>
+            <div class="field-error" th:errors="*{inflationRate}"></div>
+        </div>
+    </div>
+
+    <div style="margin-top: 18px">
+        <button class="btn primary" type="submit" th:text="${submitLabel}">開始試算</button>
+    </div>
+</form>
+</body>
+</html>
