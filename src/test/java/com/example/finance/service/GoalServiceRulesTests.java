@@ -16,4 +16,12 @@ class GoalServiceRulesTests {
         // 只有 1 個月的資料，無法判斷 → 全部都算
         assertThat(GoalService.isRecurring(1, 1)).isTrue();
     }
+
+    @Test
+    void cutRatioLabelFollowsTheParameter() {
+        // 「少花 xx%」的文字由 CUT_RATIO 算出：改參數，標題跟著變
+        assertThat(GoalService.pct(GoalService.CUT_RATIO)).isEqualTo("30%");
+        assertThat(GoalService.pct(0.5)).isEqualTo("50%");
+        assertThat(GoalService.pct(0.25)).isEqualTo("25%");
+    }
 }

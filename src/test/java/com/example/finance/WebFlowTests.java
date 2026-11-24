@@ -170,6 +170,7 @@ class WebFlowTests {
                 .andExpect(content().string(containsString("$9,000,000")))
                 .andExpect(content().string(containsString("每月要存")))
                 .andExpect(content().string(containsString("提高報酬")))
+                .andExpect(content().string(containsString("少花 30%")))   // 由 CUT_RATIO 算出，不是寫死
                 .andExpect(content().string(containsString("一次投入")));
 
         // 模式一：不填目標也可以

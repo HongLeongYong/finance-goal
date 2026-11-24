@@ -489,7 +489,7 @@ public class GoalService {
             s.add(new Suggestion("💰", "多存：每月多存 " + money(extra),
                     "相當於每天少花 " + money(daily) + work, false));
 
-            // 從花費下手：非必要支出各少花 30%
+            // 從花費下手：非必要支出各少花 CUT_RATIO（標題的百分比也由它算出，改一個地方就好）
             List<Map.Entry<String, BigDecimal>> cuttable = d.avgExpenseByCategory().entrySet().stream()
                     .filter(e -> ESSENTIAL_CATEGORIES.stream().noneMatch(name -> e.getKey().endsWith(name)))
                     .filter(e -> !d.oneOffCategories().contains(e.getKey()))
@@ -497,7 +497,7 @@ public class GoalService {
                     .limit(3).toList();
             for (Map.Entry<String, BigDecimal> e : cuttable) {
                 double save = e.getValue().doubleValue() * CUT_RATIO;
-                s.add(new Suggestion("🧾", "少花：" + e.getKey() + "少花 30%",
+                s.add(new Suggestion("🧾", "少花：" + e.getKey() + "少花 " + pct(CUT_RATIO),
                         "每月平均 " + money(e.getValue()) + "，可省 " + money(save)
                                 + (save >= extra ? "，光這一項就夠補上差距 ✅" : "，補上差距的 " + pct(save / extra)), false));
             }
